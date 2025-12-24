@@ -1,34 +1,48 @@
+# syncthing.nix
+# syncthing.nix
 { config, pkgs, ... }:
 
 {
   services.syncthing = {
     enable = true;
     user = "trynn";
-    dataDir = "/home/trynn/Documents"; # Default base dir
+    dataDir = "/home/trynn/yang_wiki"; 
     configDir = "/home/trynn/.config/syncthing";
-    overrideDevices = true;     # Allows Nix to manage device list
-    overrideFolders = true;     # Allows Nix to manage folder list
+    overrideDevices = true;
+    overrideFolders = true;
     
+    guiAddress = "0.0.0.0:8384"; 
+
     settings = {
       devices = {
-        # You will add your Phone/Laptop IDs here later
-        # "phone" = { id = "DEVICE-ID-HERE"; };
+        "Elsie" = { 
+          id = "4T45VJY-X7TXH2T-3NRYFK2-BO6RKMY-6PZS6EH-GLWAPDU-ZKBZBDJ-GQBIEQR";
+          # DOUBLE CHECK: Run 'tailscale status' on your phone to get THIS IP
+          addresses = [ "tcp://100.90.160.23:22000" ]; 
+        };
       };
       folders = {
-        "vimwiki" = {
-          path = "/home/trynn/vimwiki";
-          devices = [ ]; # Add device names here to share
+        "yang_wiki" = {
+          path = "/home/trynn/yang_wiki";
+          devices = [ "Elsie" ]; 
           versioning = {
             type = "simple";
             params.keep = "5";
           };
         };
       };
+      # Move these here to stop the NAT-PMP noise
+      options = {
+        natEnabled = false;
+        urAccepted = -1; # Opt-out of usage reporting
+      };
     };
   };
 
-  # Open Syncthing ports in the firewall
-  # (Already partially handled in our taskserver.nix, but good to be explicit)
-  networking.firewall.allowedTCPPorts = [ 8384 22000 ];
-  networking.firewall.allowedUDPPorts = [ 22000 21027 ];
+  networking.firewall = {
+    enable = true;
+    trustedInterfaces = [ "tailscale0" ];
+    allowedTCPPorts = [ 8384 22000 ];
+    allowedUDPPorts = [ 22000 21027 ];
+  };
 }
