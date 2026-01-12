@@ -9,7 +9,7 @@ alias vwi='vim ~/yang_wiki/index.md'
 alias addmd="find . -type f -exec mv '{}' '{}'.pdf \;"
 
 # --- PROJECT BRAID ---
-projects=("s:Software" "y:Yuko's Workshop" "w:Re-l" "e:emporium" "r:Radiant-Pact" "l:Life")
+projects=("s:system" "t:technical" "y:yuko" "w:re-l" "e:emporium" "r:radiant" "l:life")
 
 # PROJECT CRUD ENGINE
 _proj() {
@@ -59,19 +59,20 @@ it() {
         echo -e "\033[1;32m✅ Inbox empty\033[0m"
     else
         task "$id" info
-        echo -e "\n\033[1;36mMAP:\033[0m [s] System | [t] Taskwiki | [w] Work | [h] Home | [l] Life | [r] Radiant"
+        echo -e "\n\033[1;36mMAP:\033[0m [s] system | [t] technical | [y] yuko | [w] re-l | [e] emporium | [l] life | [r] radiant"
         echo -n "🚀 Move to (Key/Name/q): "
         read input
         [[ "$input" == "q" ]] && return
         case "$input" in
-            s) proj="SystemRepair" ;;
-            t) proj="Taskwiki" ;;
-            w) proj="Work" ;;
-            h) proj="Home" ;;
-            l) proj="Life" ;;
-            r) proj="Radiant-Pact" ;;
+            s) proj="system" ;;
+            t) proj="technical" ;;
+            w) proj="re-l" ;;
+            e) proj="emporium" ;;
+            l) proj="life" ;;
+            r) proj="radiant" ;;
+            y) proj="yuko" ;;
             *) proj="$input" ;;
-        esac
+       esac
         task "$id" modify project:"$proj" -inbox
     fi
 }
@@ -116,5 +117,67 @@ tlo() {
     echo -e "\n\033[1;36m🚀 TOMORROW:\033[0m"
     task +READY +PENDING limit:3
     task sync
+}
+
+# --- FINANCE & AGENT PATHING ---
+export FINANCE_DIR="$HOME/yang_wiki/finance"
+export LEDGER_FILE="$FINANCE_DIR/journal.ledger"  # The Master (includes others)
+export KARMA_FILE="$FINANCE_DIR/karma.ledger"     # Active Agent data
+export PERS_FILE="$FINANCE_DIR/personal.ledger"   # Personal budget data
+
+# --- ALIASES (The Intelligence Layer) ---
+alias bal='ledger bal'                            # Combined View
+alias kbal='ledger -f $KARMA_FILE bal Agents'     # Agent Only View
+alias sbal='ledger -f $KARMA_FILE bal Staging'    # Oracle/Staging View
+alias tbal='ledger -f $PERS_FILE bal Assets'    # Personal Only View
+alias ledg='vim $LEDGER_FILE'
+
+# --- PERSONAL FUNCTIONS ---
+# Usage: tadd 5.50 "Dr. Pepper"
+tadd() {
+  local date=$(date +%Y-%m-%d)
+  {
+    echo -e "\n$date * $2"
+    echo -e "    Personal:Expenses:General      \$$1"
+    echo -e "    Personal:Assets:Cash"
+  } >> "$PERS_FILE"
+  echo "Logged \$$1 to Personal Expenses."
+}
+
+# --- AGENT FUNCTIONS ---
+# Usage: klog Trynn 50 "Quest Reward"
+klog() {
+  local date=$(date +%Y-%m-%d)
+  {
+    echo -e "\n$date * $3"
+    echo -e "    Agents:$1:Karma               $2 KARMA"
+    echo -e "    Agents:System:Income"
+  } >> "$KARMA_FILE"
+  echo "Logged $2 Karma for Agent $1."
+}
+
+# Usage: kbounty 100 "Manifold Market: Tournament Outcome"
+kbounty() {
+  local date=$(date +%Y-%m-%d)
+  {
+    echo -e "\n$date ! BOUNTY: $2"
+    echo -e "    (Agents:Staging:Unassigned)    $1 KARMA"
+    echo -e "    (Agents:System:Potential)"
+  } >> "$KARMA_FILE"
+  task add "$2" project:Bounties +KARMA:$1
+  echo "Bounty staged ($1 KARMA) in Potential Space."
+}
+
+# Usage: kclaim Trynn 100 "Manifold Market: Tournament Outcome"
+kclaim() {
+  local date=$(date +%Y-%m-%d)
+  {
+    echo -e "\n$date * Claim: $3"
+    echo -e "    Agents:$1:Karma               $2 KARMA"
+    echo -e "    Agents:Staging:Unassigned    -$2 KARMA"
+  } >> "$KARMA_FILE"
+  # Mark the task as done in Taskwarrior
+  task project:Bounties "/$3/" done
+  echo "Karma attributed to $1; Bounty cleared."
 }
 
