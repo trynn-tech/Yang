@@ -6,7 +6,15 @@
 alias l='ls'
 alias cs="cd /data/data/com.termux/files/home/storage/shared/Download"
 alias vwi='vim ~/yang_wiki/index.md'
+alias t='task'
+alias ts='task sync'
+alias cx='task context none'
+alias r='report'
 alias addmd="find . -type f -exec mv '{}' '{}'.pdf \;"
+
+tu() {
+    task "$1" modify "$2"
+}
 
 # --- PROJECT BRAID ---
 projects=("s:system" "t:technical" "y:yuko" "w:re-l" "e:emporium" "r:radiant" "l:life")
@@ -97,8 +105,8 @@ get_task_progress() {
 
 # DASHBOARD
 report() {
-    echo -e "\033[1;35m--- PERFORMANCE ---\033[0m"
-    get_task_progress
+    echo -e "\033[1;35m--- PERFORMANCE ---\033[0m \n"
+    get_task_progress  
     local ctx=$(task _get rc.context)
     [[ -z "$ctx" ]] && echo "Context: Global" || echo -e "Context: \033[1;33m$ctx\033[0m"
     echo -e "\n\033[1;34mClocked In:\033[0m"
