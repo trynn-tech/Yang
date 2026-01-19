@@ -8,6 +8,8 @@
     ./hardware-configuration.nix
     # TaskWarrior 3 Synchronize Servers
     ./taskserver.nix
+    # Podman Configurations for Re-L AI
+    ./lab.nix
   ];
 
   # Bootloader.
@@ -24,6 +26,10 @@
     options snd_hda_intel power_save=0
   '';
 
+  boot.kernel.sysctl = {
+  "vm.overcommit_memory" = 1;
+  };
+
   networking.hostName = "nixos"; 
   networking.networkmanager.enable = true;
   networking.nameservers = [ "1.1.1.1" "8.8.8.8" ];
@@ -31,11 +37,25 @@
   # Set your time zone.
   time.timeZone = "America/Chicago";
 
+  # If utilizing ROG Flachion Keyboard this fixes X11 computer shares wake state with keyboard
+  services.xserver.inputClassSections = [
+    ''
+      Identifier         "disable asus falchion sys control"
+      MatchIsKeyboard    "on"
+      MatchProduct       "ASUSTeK ROG FALCHION System Control"
+      Option             "Ignore" "on"
+    ''
+  ];
+
   # 1. Enable the shell system-wide (Critical!)
   programs.zsh.enable = true;
 
   # 2. Assign it to your user
   users.users.trynn = {
+    isNormalUser = true;  # This fixes the "isSystemUser/isNormalUser" error
+    description = "trynn";
+    group = "users";      # This fixes the "group is unset" error
+    extraGroups = [ "networkmanager" "wheel" "video" "audio" ]; # 'wheel' for sudo
     shell = pkgs.zsh;
   };
 
@@ -56,26 +76,19 @@
   # Enable CUPS to print documents.
   services.printing.enable = true;
 
-  # Enable sound with pipewire.
-  services.pulseaudio.enable = false; 
-  security.rtkit.enable = true; 
+  # Sound
+  services.pulseaudio.enable = false;
+  security.rtkit.enable = true; # Recommended for better performance
+  
   services.pipewire = {
-    enable = true; 
-    alsa.enable = true; 
-    alsa.support32Bit = true; 
-    pulse.enable = true;
+    enable = true;
+    alsa.enable = true;
+    alsa.support32Bit = true;
+    pulse.enable = true; # Enable PulseAudio emulation for compatibility
+    wireplumber.enable = true; # Use WirePlumber session manager (recommended)
+    # jack.enable = true; # Uncomment this if you need JACK application support
   };
 
-  # Define a user account.
-  users.users.trynn = { 
-    isNormalUser = true; 
-    description = "Tristen Threadwalker"; 
-    extraGroups = [ "networkmanager" "wheel" "podman" "video" "render"]; 
-    packages = with pkgs; [ ];
-  };
-
-  # Install firefox.
-  programs.firefox.enable = true;
 
   # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
@@ -103,10 +116,32 @@
     adwaita-icon-theme # Provides a standard cursor
     brightnessctl   # Control screen brightness
     pavucontrol     # Audio control
-    rofi
+    rofi            # Menu For User Applications
+    nvidia-container-toolkit # Std interface for Nvidia container configuration
+    easyeffects
   ];
 
-  services.picom = {
+  # Ensure proprietary firmware (like SOF for Intel) is available
+  hardware.enableAllFirmware = true;
+
+  # 2. Enable dconf (EasyEffects needs this to save settings/presets)
+  programs.dconf.enable = true;
+
+  # 3. To make it start automatically for your user:
+  # System-wide NixOS doesn't have a 'services.easyeffects'
+  # So we tell the system to allow user-level systemd services
+  systemd.user.services.easyeffects = {
+    description = "EasyEffects daemon";
+    requires = [ "pipewire.service" ];
+    after = [ "pipewire.service" ];
+    wantedBy = [ "graphical-session.target" ];
+    serviceConfig = {
+      ExecStart = "${pkgs.easyeffects}/bin/easyeffects --gapplication-service";
+      Restart = "on-failure";
+    };
+  };
+
+    services.picom = {
     enable = true;
     # Switching to 'glx' with these specific settings usually solves the lag
     backend = "xrender"; 
@@ -140,7 +175,6 @@
     defaultNetwork.settings.dns_enabled = true;
   };
 
-
    services.xserver = {
     enable = true;
     
@@ -159,6 +193,9 @@
       Option "TearFree" "true"
     '';
   };
+
+  systemd.services.NetworkManager-wait-online.enable = false;
+  systemd.services.podman-re-l-core.serviceConfig.TimeoutStartSec = lib.mkForce "10m";
 
   services.displayManager.ly.enable = true;
   services.displayManager.defaultSession = "none+i3";
