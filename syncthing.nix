@@ -1,5 +1,4 @@
 # syncthing.nix
-# syncthing.nix
 { config, pkgs, ... }:
 
 {
@@ -42,7 +41,7 @@
   networking.firewall = {
     enable = true;
     trustedInterfaces = [ "tailscale0" ];
-    allowedTCPPorts = [ 8384 22000 ];
+    allowedTCPPorts = [ 22000 ];
     allowedUDPPorts = [ 22000 21027 ];
   };
 }
