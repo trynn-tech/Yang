@@ -7,16 +7,18 @@ alias l='ls'
 alias cs="cd /data/data/com.termux/files/home/storage/shared/Download"
 alias vwi='vim ~/yang_wiki/index.md'
 alias t='task'
+alias te='task edit' 
+alias tu='task modify' 
+alias tf='task done'
+alias td='task delete'
 alias ts='task sync'
 alias cx='task context none'
+alias ctx='task context define tz' # tz for task zone
 alias r='report'
 alias addmd="find . -type f -exec mv '{}' '{}'.pdf \;"
 
-tu() {
-    task "$1" modify "$2"
-}
 
-# --- PROJECT BRAID ---
+# --- Project Interlace ---
 projects=("s:system" "t:technical" "y:yuko" "w:re-l" "e:emporium" "r:radiant" "l:life")
 
 # PROJECT CRUD ENGINE
@@ -57,7 +59,6 @@ done
 # --- TASK ENGINES ---
 alias ic='task add +inbox'
 alias ir='task +inbox list'
-alias ip='task modify'
 alias review='task status:pending age.gt:2w list'
 
 # TRIAGE LOOP

@@ -5,7 +5,7 @@
   services.syncthing = {
     enable = true;
     user = "trynn";
-    dataDir = "/home/trynn/yang_wiki"; 
+    dataDir = "/home/trynn/wiki_yuko"; 
     configDir = "/home/trynn/.config/syncthing";
     overrideDevices = true;
     overrideFolders = true;
@@ -21,8 +21,8 @@
         };
       };
       folders = {
-        "yang_wiki" = {
-          path = "/home/trynn/yang_wiki";
+        "wiki_yuko" = {
+          path = "/home/trynn/wiki_yuko";
           devices = [ "Elsie" ]; 
           versioning = {
             type = "simple";

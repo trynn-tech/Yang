@@ -101,3 +101,4 @@ highlight VimwikiHeader2 guifg=#50FA7B gui=bold
 " This tells Taskwiki: If it's [X], and it's not in the filter (+READY), delete the line.
 let g:taskwiki_preserve_completed_tasks = 0
 
+let g:vimwiki_file_exts = ['ledger', 'txt', 'pdf']

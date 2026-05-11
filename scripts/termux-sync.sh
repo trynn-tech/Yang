@@ -47,9 +47,9 @@ call plug#end()
 
 " -----------------------------------------------------------------------------
 " TODO: WIKI PATH
-" Change '~/yuko_wiki/' if you move your vault (e.g., to /storage/emulated/0/...)
+" Change '~/wiki_yuko/' if you move your vault (e.g., to /storage/emulated/0/...)
 " -----------------------------------------------------------------------------
-let g:vimwiki_list = [{'path': '~/yuko_wiki/', 'syntax': 'markdown', 'ext': '.md'}]
+let g:vimwiki_list = [{'path': '~/wiki_yuko/', 'syntax': 'markdown', 'ext': '.md'}]
 
 let g:taskwiki_taskbin = 'task'
 let g:taskwiki_extra_pythonpath = '~/.vim/plugged/taskwiki'

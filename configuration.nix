@@ -37,7 +37,23 @@
   # Set your time zone.
   time.timeZone = "America/Chicago";
 
-  # If utilizing ROG Flachion Keyboard this fixes X11 computer shares wake state with keyboard
+  # --- Desktop Power Strategy (Always On for Tailscale/AI) ---
+  services.logind = {
+    # All settings now live inside this structured block
+    settings.Login = {
+      HandleLidSwitch = "ignore";
+      HandleLidSwitchExternalPower = "ignore";
+      IdleAction = "ignore";
+    };
+  };
+
+  # Completely disable the ability to suspend/sleep
+  systemd.targets.sleep.enable = false;
+  systemd.targets.suspend.enable = false;
+  systemd.targets.hibernate.enable = false;
+  systemd.targets.hybrid-sleep.enable = false;
+
+   # If utilizing ROG Flachion Keyboard this fixes X11 computer shares wake state with keyboard
   services.xserver.inputClassSections = [
     ''
       Identifier         "disable asus falchion sys control"
@@ -206,6 +222,14 @@
     dockerCompat = true;
     defaultNetwork.settings.dns_enabled = true;
   };
+
+  # Minimal Steam Setup
+  programs.steam = {
+    enable = true;
+  };
+
+  # Optional: Enable Gamemode for better performance 
+  programs.gamemode.enable = true;
 
   system.stateVersion = "25.11"; 
 }

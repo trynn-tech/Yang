@@ -1,0 +1,43 @@
+# [Created by task 3.4.2 12/17/2025 17:04:31]
+# To use the default location of the XDG directories,
+# move this configuration file from ~/.taskrc to ~/.config/task/taskrc and update location config as follows:
+
+#data.location=~/.local/share/task
+#hooks.location=~/.config/task/hooks
+
+# Color theme (uncomment one to use)
+#include light-16.theme
+#include light-256.theme
+#include bubblegum-256.theme
+#include dark-16.theme
+#include dark-256.theme
+#include dark-red-256.theme
+include dark-green-256.theme
+#include dark-blue-256.theme
+#include dark-violets-256.theme
+color.tagged=cyan
+#include dark-yellow-green.theme
+#include dark-gray-256.theme
+#include dark-gray-blue-256.theme
+#include solarized-dark-256.theme
+#include solarized-light-256.theme
+#include no-color.theme
+data.location=/data/data/com.termux/files/home/.task
+news.version=3.4.2
+sync.server.url = http://100.117.104.112:8080
+sync.server.timeout = 30
+sync.server.client_id=58f0b3c8-9c13-427d-8921-1cebfe441a70
+sync.encryption_secret=HelloInternet42!
+rc.confirmation=no
+rc.dependency.confirmation=no
+rc.recurrence.confirmation=no
+json.array=on
+verbose=nothing
+context.yuko.read=project:yuko
+context.yuko.write=project:yuko
+context.re-l.read=project:re-l
+context.re-l.write=project:re-l
+context.technical.read=project:technical
+context.technical.write=project:technical
+context.system.read=project:system
+context.system.write=project:system
