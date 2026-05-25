@@ -4,8 +4,10 @@
 
 # --- NAV & BASICS ---
 alias l='ls'
+alias ll='ls -ha'
 alias cs="cd /data/data/com.termux/files/home/storage/shared/Download"
-alias vwi='vim ~/yang_wiki/index.md'
+alias vwi='vim ~/wiki_yuko/index.md'
+alias vd='vim -c "VimwikiMakeDiaryNote"'
 alias t='task'
 alias te='task edit' 
 alias tu='task modify' 
@@ -129,7 +131,7 @@ tlo() {
 }
 
 # --- FINANCE & AGENT PATHING ---
-export FINANCE_DIR="$HOME/yang_wiki/finance"
+export FINANCE_DIR="$HOME/wiki_yuko/finance"
 export LEDGER_FILE="$FINANCE_DIR/journal.ledger"  # The Master (includes others)
 export KARMA_FILE="$FINANCE_DIR/karma.ledger"     # Active Agent data
 export PERS_FILE="$FINANCE_DIR/personal.ledger"   # Personal budget data

@@ -20,7 +20,6 @@
   ];
 
   boot.extraModprobeConfig = ''
-    options nvidia nvidia-drm-modeset=1
     options snd_hda_intel power_save=0
   '';
 
@@ -53,15 +52,12 @@
   systemd.targets.hibernate.enable = false;
   systemd.targets.hybrid-sleep.enable = false;
 
-   # If utilizing ROG Flachion Keyboard this fixes X11 computer shares wake state with keyboard
-  services.xserver.inputClassSections = [
-    ''
-      Identifier         "disable asus falchion sys control"
-      MatchIsKeyboard    "on"
-      MatchProduct       "ASUSTeK ROG FALCHION System Control"
-      Option             "Ignore" "on"
-    ''
-  ];
+  # Ignore stray sleep/power signals from ASUS ROG Falchion
+  services.udev.extraRules = ''
+  SUBSYSTEM=="input", ATTRS{idVendor}=="0b05", ATTRS{idProduct}=="193e", ATTRS{name}=="ASUSTeK ROG FALCHION System Control", ENV{LIBINPUT_IGNORE_DEVICE}="1", ATTR{authorized}="0"
+'';
+
+
 
   # 1. Enable the shell system-wide (Critical!)
   programs.zsh.enable = true;
@@ -120,6 +116,7 @@
     rofi            # Menu For User Applications
     nvidia-container-toolkit # Std interface for Nvidia container configuration
     easyeffects
+    sonobus
   ];
 
   # Ensure proprietary firmware (like SOF for Intel) is available
@@ -154,6 +151,17 @@
 
   hardware.nvidia-container-toolkit.enable = true;
 
+  # common fix for X11/i3/Nvidia artifacts with Steam
+  services.xserver.config = ''
+  Section "Screen"
+    Identifier "Screen0"
+    Device "nvidia"
+    Option "ForceFullCompositionPipeline" "on"
+    Option "AllowIndirectGLXProtocol" "off"
+    Option "TripleBuffer" "on"
+  EndSection
+  '';
+
   services.gnome.gnome-keyring.enable = true;
   security.pam.services.sddm.enableGnomeKeyring = true;
 
@@ -171,6 +179,7 @@
     layout = "us"; 
     variant = "";
   };
+
 
   # Sound
   services.pulseaudio.enable = false;
@@ -230,6 +239,8 @@
 
   # Optional: Enable Gamemode for better performance 
   programs.gamemode.enable = true;
+
+  programs.kdeconnect.enable = true;
 
   system.stateVersion = "25.11"; 
 }
