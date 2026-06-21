@@ -54,9 +54,9 @@
 
   # Ignore stray sleep/power signals from ASUS ROG Falchion
   services.udev.extraRules = ''
-  SUBSYSTEM=="input", ATTRS{idVendor}=="0b05", ATTRS{idProduct}=="193e", ATTRS{name}=="ASUSTeK ROG FALCHION System Control", ENV{LIBINPUT_IGNORE_DEVICE}="1", ATTR{authorized}="0"
-'';
-
+    # Completely block the rogue ASUS ROG Falchion power button signals
+    SUBSYSTEM=="input", ATTRS{idVendor}=="0b05", ATTRS{idProduct}=="193e", ENV{SYSTEMD_WANTS}="", TAG-="power-switch"
+  '';
 
 
   # 1. Enable the shell system-wide (Critical!)
@@ -101,8 +101,8 @@
     curl
     tree
     pciutils
-    tailscale
-    syncthing
+    tailscale # VPN private network
+    syncthing # For File-Sharing amongst tailscale networked machines
     go-task
     alacritty      # Better terminal
     dmenu          # Program launcher (Mod+D)
@@ -116,7 +116,7 @@
     rofi            # Menu For User Applications
     nvidia-container-toolkit # Std interface for Nvidia container configuration
     easyeffects
-    sonobus
+    sonobus # Steam audio to networked machines
   ];
 
   # Ensure proprietary firmware (like SOF for Intel) is available
