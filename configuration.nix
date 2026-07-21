@@ -8,6 +8,8 @@
     ./taskserver.nix
     # Podman Configurations for Re-L AI
     ./lab.nix
+    # Advanced Intrusion Detection Environment Configuration
+    ./aide.nix # <--- Add it right here
   ];
 
   # Bootloader.
@@ -23,10 +25,11 @@
     options snd_hda_intel power_save=0
   '';
 
-  boot.initrd.kernelModules = ["i915" "nvidia" "nvidia_modeset" "nvidia_uvm" "nvidia_drm" ];
+  # Added i915 back so the motherboard HDMI port turns on during boot initialization
+  boot.initrd.kernelModules = [ "i915" "nvidia" "nvidia_modeset" "nvidia_uvm" "nvidia_drm" ];
 
   boot.kernel.sysctl = {
-  "vm.overcommit_memory" = 1;
+    "vm.overcommit_memory" = 1;
   };
 
   networking.hostName = "nixos"; 
@@ -38,7 +41,6 @@
 
   # --- Desktop Power Strategy (Always On for Tailscale/AI) ---
   services.logind = {
-    # All settings now live inside this structured block
     settings.Login = {
       HandleLidSwitch = "ignore";
       HandleLidSwitchExternalPower = "ignore";
@@ -54,20 +56,18 @@
 
   # Ignore stray sleep/power signals from ASUS ROG Falchion
   services.udev.extraRules = ''
-    # Completely block the rogue ASUS ROG Falchion power button signals
     SUBSYSTEM=="input", ATTRS{idVendor}=="0b05", ATTRS{idProduct}=="193e", ENV{SYSTEMD_WANTS}="", TAG-="power-switch"
   '';
-
 
   # 1. Enable the shell system-wide (Critical!)
   programs.zsh.enable = true;
 
   # 2. Assign it to your user
   users.users.trynn = {
-    isNormalUser = true;  # This fixes the "isSystemUser/isNormalUser" error
+    isNormalUser = true;  
     description = "trynn";
-    group = "users";      # This fixes the "group is unset" error
-    extraGroups = [ "networkmanager" "wheel" "video" "audio" ]; # 'wheel' for sudo
+    group = "users";      
+    extraGroups = [ "networkmanager" "wheel" "video" "audio" ]; 
     shell = pkgs.zsh;
   };
 
@@ -101,49 +101,50 @@
     curl
     tree
     pciutils
-    tailscale # VPN private network
-    syncthing # For File-Sharing amongst tailscale networked machines
+    tailscale 
+    syncthing 
     go-task
-    alacritty      # Better terminal
-    dmenu          # Program launcher (Mod+D)
-    copyq          # Clipboard manager
-    feh            # For setting wallpapers
-    picom          # For transparency and shadows (prevents screen tearing)
-    arandr         # Visual tool to manage multiple monitors
-    adwaita-icon-theme # Provides a standard cursor
-    brightnessctl   # Control screen brightness
-    pavucontrol     # Audio control
-    rofi            # Menu For User Applications
-    nvidia-container-toolkit # Std interface for Nvidia container configuration
+    alacritty      
+    dmenu          
+    copyq          
+    feh            
+    picom          
+    arandr         
+    adwaita-icon-theme 
+    brightnessctl   
+    pavucontrol     
+    rofi            
+    nvidia-container-toolkit 
     easyeffects
-    sonobus # Steam audio to networked machines
+    sonobus 
   ];
 
   # Ensure proprietary firmware (like SOF for Intel) is available
   hardware.enableAllFirmware = true;
 
-   services.xserver = {
+  services.xserver = {
     enable = true;
-    
-    # Enable i3
     windowManager.i3.enable = true;
     
-    # Set the default session to i3
+    # FIX: Keep nvidia as the driver instructing the display canvas to avoid sddm hangs
     videoDrivers = [ "nvidia" ];
   };
 
   # Hardware / Nvidia
   hardware.graphics.enable = true;
   hardware.nvidia = {
-    open = true; # Set to false if you experience stability issues with 'open'
+    open = true; 
     modesetting.enable = true;
     powerManagement.enable = true;
     nvidiaSettings = true;
     nvidiaPersistenced = true;
     package = config.boot.kernelPackages.nvidiaPackages.stable;
+    
+    # Active PRIME Sync configuration to bind both hardware cards together
     prime = {
-      offload.enable = true;
-      offload.enableOffloadCmd = true;
+      offload.enable = false;
+      offload.enableOffloadCmd = false;
+      sync.enable = true;
       intelBusId = "PCI:0:2:0";
       nvidiaBusId = "PCI:2:0:0";
     };
@@ -151,15 +152,21 @@
 
   hardware.nvidia-container-toolkit.enable = true;
 
-  # common fix for X11/i3/Nvidia artifacts with Steam
+  # FIX: Forces X11 to bind to the Nvidia card while leaving the sync pipelines active for the motherboard port
   services.xserver.config = ''
-  Section "Screen"
-    Identifier "Screen0"
-    Device "nvidia"
-    Option "ForceFullCompositionPipeline" "on"
-    Option "AllowIndirectGLXProtocol" "off"
-    Option "TripleBuffer" "on"
-  EndSection
+    Section "Device"
+        Identifier     "Device0"
+        Driver         "nvidia"
+        VendorName     "NVIDIA Corporation"
+    EndSection
+
+    Section "Screen"
+        Identifier     "Screen0"
+        Device         "Device0"
+        Option         "ForceFullCompositionPipeline" "on"
+        Option         "TripleBuffer" "on"
+        Option         "AllowIndirectGLXProtocol" "off"
+    EndSection
   '';
 
   services.gnome.gnome-keyring.enable = true;
@@ -180,28 +187,29 @@
     variant = "";
   };
 
-
   # Sound
   services.pulseaudio.enable = false;
-  security.rtkit.enable = true; # Recommended for better performance
+  security.rtkit.enable = true; 
   
   services.pipewire = {
     enable = true;
     alsa.enable = true;
     alsa.support32Bit = true;
-    pulse.enable = true; # Enable PulseAudio emulation for compatibility
-    wireplumber.enable = true; # Use WirePlumber session manager (recommended)
-    # jack.enable = true; # Uncomment this if you need JACK application support
+    pulse.enable = true; 
+    wireplumber.enable = true; 
   };
 
   systemd.services.NetworkManager-wait-online.enable = false;
-  systemd.services.podman-re-l-core.serviceConfig.TimeoutStartSec = lib.mkForce "10m";
+
+  # Keep container initialization safe. Protects against future network/nscd timeouts during startup hooks.
+  systemd.services.podman-re-l-core = {
+    wantedBy = [ "multi-user.target" ];
+    after = [ "display-manager.service" "nvidia-persistenced.service" ];
+    serviceConfig.TimeoutStartSec = lib.mkForce "10m";
+  };
 
   programs.dconf.enable = true;
 
-  # 3. To make it start automatically for your user:
-  # System-wide NixOS doesn't have a 'services.easyeffects'
-  # So we tell the system to allow user-level systemd services
   systemd.user.services.easyeffects = {
     description = "EasyEffects daemon";
     requires = [ "pipewire.service" ];
@@ -215,7 +223,6 @@
 
   services.picom = {
     enable = true;
-    # Switching to 'glx' with these specific settings usually solves the lag
     backend = "glx"; 
     vSync = true;
    };
@@ -237,10 +244,23 @@
     enable = true;
   };
 
-  # Optional: Enable Gamemode for better performance 
-  programs.gamemode.enable = true;
+  # Restored Steam Port Openings & Firewall rules
+  networking.firewall = {
+    enable = true;
+    allowedTCPPorts = [ 27015 ];
+    allowedUDPPortRanges = [
+      { from = 27015; to = 27030; }
+      { from = 4379;  to = 4380; }
+    ];
+    extraCommands = ''
+      iptables -A OUTPUT -p udp --dport 443 -j DROP
+      iptables -A INPUT -p udp --dport 443 -j DROP
+    '';
+  };
 
+  programs.gamemode.enable = true;
   programs.kdeconnect.enable = true;
 
   system.stateVersion = "25.11"; 
 }
+
