@@ -63,7 +63,85 @@ alias ic='task add +inbox'
 alias ir='task +inbox list'
 alias review='task status:pending age.gt:2w list'
 
-# TRIAGE LOOP
+# Priority Treeage
+sort() {
+    local primary_filter="${1:-+inbox}"
+    local using_fallback=false
+
+    echo "🧬 Taskwarrior Resilient Queue Pipeline Active."
+    echo "--------------------------------------------------"
+
+    while true; do
+        # Fetch the first numeric ID matching the current filter strategy
+        local id
+        if [ "$using_fallback" = false ]; then
+            id=$(task status:pending "$primary_filter" _ids 2>/dev/null | head -n 1)
+        else
+            id=$(task status:pending _ids 2>/dev/null | head -n 1)
+        fi
+
+        # If no ID is returned, handle fallback or exit
+        if [ -z "$id" ]; then
+            if [ "$using_fallback" = false ]; then
+                echo "📭 Primary filter exhausted. Shifting to cover all remaining pending tasks..."
+                using_fallback=true
+                sleep 1
+                continue
+            else
+                echo "🎉 Queue empty or no matching tasks found. Exiting pipeline."
+                break
+            fi
+        fi
+
+        # Display details of the current task explicitly via its numeric ID (just like `it`)
+        clear
+        echo "=================================================="
+        task "$id" info
+        echo "=================================================="
+
+        # Prompt user for actions
+        echo -e "\n[Action Options]"
+        echo "  [p] Set/Change Priority (L, M, H, or blank)"
+        echo "  [j] Jump/Skip to next task"
+        echo "  [q] Quit pipeline"
+        read -p "Select action [p/j/q]: " -n 1 -r action
+        echo
+
+        case "$action" in
+            p|P)
+                read -p "Enter priority (H/M/L or leave empty to clear): " prio
+                prio=$(echo "$prio" | tr '[:lower:]' '[:upper:]')
+
+                if [[ "$prio" =~ ^[HML]$ ]]; then
+                    task "$id" modify priority:"$prio"
+                elif [ -z "$prio" ]; then
+                    task "$id" modify priority:
+                else
+                    echo "⚠️ Invalid priority. Skipping modification."
+                    sleep 1
+                    continue
+                fi
+
+                echo "✅ Task updated and advanced."
+                ;;
+            j|J)
+                echo "⏭️ Skipping task..."
+                task "$id" modify +skipped >/dev/null
+                ;;
+            q|Q)
+                echo "🛑 Exiting queue pipeline."
+                break
+                ;;
+            *)
+                echo "⚠️ Unrecognized input. Advancing..."
+                ;;
+        esac
+
+        sleep 0.5
+    done
+}
+
+# Project Treeage
 it() {
     local id=$(task +inbox _ids | awk -F',' '{print $1}')
     if [ -z "$id" ]; then
@@ -108,8 +186,6 @@ get_task_progress() {
 
 # DASHBOARD
 report() {
-    echo -e "\033[1;35m--- PERFORMANCE ---\033[0m \n"
-    get_task_progress  
     local ctx=$(task _get rc.context)
     [[ -z "$ctx" ]] && echo "Context: Global" || echo -e "Context: \033[1;33m$ctx\033[0m"
     echo -e "\n\033[1;34mClocked In:\033[0m"
