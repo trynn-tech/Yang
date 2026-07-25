@@ -148,9 +148,22 @@ report() {
     echo -e "\n\033[1;35m--- [ PERFORMANCE REPORT ] ---\033[0m"
     local done=$(task end:today status:completed count)
     local pending=$(task status:pending count)
-    echo -e "Completed Today: \033[1;32m$done\033[0m | Pending: \033[1;33m$pending\033[0m"
-    echo -e "\n\033[1;34mCurrently Clocked In:\033[0m"
-    task +ACTIVE list || echo "  (No tasks currently started)"
+    echo -e "Completed Today: \033[1;38;5;141m$done\033[0m | Pending: \033[1;38;5;183m$pending\033[0m"
+    echo -e "\n\033[1;38;5;177mCurrently Clocked In:\033[0m"
+    
+    # Custom two-row active task processor (Row 1: Metadata, Row 2: Description)
+    local active_export
+    active_export=$(task +ACTIVE export 2>/dev/null)
+    
+    if [[ -z "$active_export" || "$active_export" == "[]" ]]; then
+        echo "  (No tasks currently started)"
+    else
+        echo "$active_export" | jq -r '.[] | "\(.id)|\(.entry)|\(.due // "None")|\(.priority // "None")|\(.project // "none")|\(.description)"' | while IFS='|' read -r id entry due pri proj desc; do
+            echo -e "  \033[1;38;5;141m[#$id]\033[0m Pri: \033[1;38;5;213m$pri\033[0m | Proj: \033[1;38;5;183m$proj\033[0m | Due: $due"
+            echo -e "    ↳ \033[1;38;5;225m$desc\033[0m"
+            echo ""
+        done
+    fi
 }
 
 # HEALTH MAP
