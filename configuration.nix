@@ -1,11 +1,17 @@
 { config, pkgs, lib, ... }:
 
+let
+  # MASTER AUDIO TOGGLE: Set to false for PipeWire + Scaling fixes. Set to true for legacy PulseAudio.
+  _customAudioToggle = false; 
+in
 { 
   imports = [ 
     # Include the results of the hardware scan.
     ./hardware-configuration.nix
     # TaskWarrior 3 Synchronize Servers
     ./taskserver.nix
+    # TaskWarrior Project Scheduler
+    ./carousel.nix 
     # Podman Configurations for Re-L AI
     ./lab.nix
     # Advanced Intrusion Detection Environment Configuration
@@ -130,7 +136,26 @@
     videoDrivers = [ "nvidia" ];
   };
 
-  # Hardware / Nvidia
+  # A custom "Caffeine-style" background process to keep displays alive
+  systemd.user.services.anti-sleep-poker = {
+    description = "Prevents TV/Displays from going to sleep via periodic xset pokes";
+    wantedBy = [ "graphical-session.target" ];
+    partOf = [ "graphical-session.target" ];
+    serviceConfig = {
+      ExecStart = pkgs.writers.writeBash "anti-sleep" ''
+        while true; do
+          # Disable screensaver/dpms and nudge the display every 4 minutes
+          ${pkgs.xorg.xset}/bin/xset s off
+          ${pkgs.xorg.xset}/bin/xset -dpms
+          ${pkgs.xorg.xset}/bin/xset dpms force on
+          sleep 240
+        done
+      '';
+      Restart = "always";
+    };
+  };
+
+   # Hardware / Nvidia
   hardware.graphics.enable = true;
   hardware.nvidia = {
     open = true; 
@@ -154,6 +179,13 @@
 
   # FIX: Forces X11 to bind to the Nvidia card while leaving the sync pipelines active for the motherboard port
   services.xserver.config = ''
+    Section "ServerFlags"
+        Option "BlankTime" "0"
+        Option "StandbyTime" "0"
+        Option "SuspendTime" "0"
+        Option "OffTime" "0"
+    EndSection
+
     Section "Device"
         Identifier     "Device0"
         Driver         "nvidia"
@@ -187,16 +219,34 @@
     variant = "";
   };
 
-  # Sound
-  services.pulseaudio.enable = false;
+    # =========================================================================
+  # Audio Hardware & Server Infrastructure
+  # =========================================================================
+  
+  services.pulseaudio.enable = _customAudioToggle;
   security.rtkit.enable = true; 
   
   services.pipewire = {
-    enable = true;
+    enable = !_customAudioToggle;
     alsa.enable = true;
     alsa.support32Bit = true;
     pulse.enable = true; 
     wireplumber.enable = true; 
+
+    # Override WirePlumber to lock down linear software volume scaling
+    wireplumber.extraConfig."50-alsa-software-mixer" = lib.mkIf (!_customAudioToggle) {
+      "monitor.alsa.rules" = [
+        {
+          matches = [ { "device.name" = "~alsa_card.*"; } ];
+          actions = {
+            update-props = {
+              "api.alsa.ignore-dB" = true; 
+              "api.alsa.soft-mixer" = true; 
+            };
+          };
+        }
+      ];
+    };
   };
 
   systemd.services.NetworkManager-wait-online.enable = false;
