@@ -102,27 +102,12 @@ in
 
   # List packages installed in system profile.
   environment.systemPackages = with pkgs; [
-    vim
-    git
-    curl
-    tree
     pciutils
     tailscale 
     syncthing 
-    go-task
-    alacritty      
-    dmenu          
-    copyq          
-    feh            
     picom          
-    arandr         
-    adwaita-icon-theme 
-    brightnessctl   
-    pavucontrol     
-    rofi            
     nvidia-container-toolkit 
     easyeffects
-    sonobus 
   ];
 
   # Ensure proprietary firmware (like SOF for Intel) is available

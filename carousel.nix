@@ -1,10 +1,8 @@
 # /etc/nixos/carousel.nix
-
 { config, lib, pkgs, ... }:
 
 let
   taskBin = "${pkgs.taskwarrior3}/bin/task";
-
   taskCarousel = pkgs.writers.writePython3Bin "task-carousel" {
     libraries = [ ];
     doCheck = false;
@@ -19,31 +17,36 @@ let
         "technical": 5,
         "system": 4,
         "yuko": 4,
+        "code": 4,
         "life": 3,
+        "re-l": 3,
         "radiant": 2,
-        "re-l": 2,
     }
 
     def run_cmd(args):
-        # Point to the local task data location used by the server/system service if needed, 
-        # or let it fallback to default environment paths.
         result = subprocess.run(["${taskBin}", "rc.confirmation=no"] + args, capture_output=True, text=True)
         return result.stdout.strip()
 
     def main():
         today_str = datetime.now().strftime("%Y-%m-%d")
-        status = run_cmd(["rc.verbose=nothing", "rc.hooks=off", "+carousel_tracker", "export"])
         
-        if status:
+        status_output = run_cmd(["rc.verbose=nothing", "rc.hooks=off", "+carousel_tracker", "status:", "export"])
+
+        if status_output:
             try:
-                tasks = json.loads(status)
+                tasks = json.loads(status_output)
                 if tasks:
                     task_list = tasks if isinstance(tasks, list) else [tasks]
+                    already_ran = False
+                    
                     for tracker in task_list:
                         if tracker.get("description") == f"Carousel Ran: {today_str}":
-                            sys.exit(0)
+                            already_ran = True
                         else:
                             run_cmd(["rc.hooks=off", str(tracker["uuid"]), "delete"])
+                            
+                    if already_ran:
+                        sys.exit(0)
             except Exception:
                 pass
 
@@ -59,7 +62,6 @@ let
   '';
 in
 {
-  # System-wide timer to drop the daily Neural Ordinance automatically
   systemd.timers.taskwarrior-carousel = {
     wantedBy = [ "timers.target" ];
     timerConfig = {
@@ -74,8 +76,7 @@ in
     '';
     serviceConfig = {
       Type = "oneshot";
-      # Run as your user or the service user that owns the task data
-      User = "trynn"; 
+      User = "trynn";
     };
   };
 }
