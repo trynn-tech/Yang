@@ -238,7 +238,8 @@ in
     variant = "";
   };
 
-  # Audio Stack
+
+    # Audio Stack
   services.pulseaudio.enable = _customAudioToggle;
   security.rtkit.enable = true; 
   services.pipewire = {
@@ -247,6 +248,8 @@ in
     alsa.support32Bit = true;
     pulse.enable = true; 
     wireplumber.enable = true; 
+
+    # 1. Hardware Software-Mixer Configuration
     wireplumber.extraConfig."50-alsa-software-mixer" = lib.mkIf (!_customAudioToggle) {
       "monitor.alsa.rules" = [
         {
@@ -260,10 +263,91 @@ in
         }
       ];
     };
+
+    # 2. Modern combine-stream to bridge separate hardware clocks safely
+    extraConfig.pipewire."10-abstract-tv-factory" = lib.mkIf (!_customAudioToggle) {
+      "context.modules" = [
+        {
+          name = "libpipewire-module-combine-stream";
+          args = {
+            "combine.mode" = "sink";
+            "node.name" = "Abstract_Dual_TV";
+            "node.description" = "Sovereign Abstract Audio Factory";
+            "combine.props" = {
+              "audio.position" = [ "FL" "FR" ];
+              "priority.driver" = 2000;
+              "priority.session" = 2000;
+            };
+            "stream.props" = {
+              "stream.dont-remix" = true;
+            };
+            "stream.rules" = [
+              {
+                matches = [
+                  { "node.name" = "alsa_output.pci-0000_02_00.1.hdmi-stereo"; }
+                  { "node.name" = "alsa_output.pci-0000_00_1f.3.hdmi-stereo"; }
+                ];
+                actions = {
+                  "create-stream" = { };
+                };
+              }
+            ];
+          };
+        }
+      ];
+    };
+
+    wireplumber.extraConfig."51-disable-hdmi-suspend" = lib.mkIf (!_customAudioToggle) {
+      "monitor.alsa.rules" = [
+        {
+          matches = [
+            { "node.name" = "~alsa_output.*hdmi.*"; }
+          ];
+          actions = {
+            update-props = {
+              "session.suspend-timeout-seconds" = 0; # Disable auto-suspend on HDMI
+            };
+          };
+        }
+      ];
+    };
+
+    # 3. Structural Crash Fix: Strip out mod.x11-bell to stop X11 display disconnects from dropping PipeWire
+    extraConfig.pipewire."20-stop-x11-bell-crashes" = lib.mkIf (!_customAudioToggle) {
+      "context.modules" = [
+        { 
+          name = "libpipewire-module-x11-bell";
+          flags = [ "ifexists" "nofail" ];
+          args = { };
+          # Disabling execution protects the daemon core from X11 I/O faults
+          enabled = false; 
+        }
+      ];
+    };
   };
 
-  systemd.services.NetworkManager-wait-online.enable = false;
+  #systemd.user.services.set-default-audio-sink = {
+  #  description = "Set Sovereign Abstract Audio Factory as default sink";
+  #  wantedBy = [ "graphical-session.target" ];
+  #  after = [ "pipewire.service" "pipewire-pulse.service" ];
+  #  serviceConfig = {
+  #    Type = "oneshot";
+  #    ExecStart = pkgs.writers.writeBash "set-default-sink" ''
+  #      # Wait up to 10 seconds for PipeWire Pulse socket to become responsive
+  #      for i in {1..10}; do
+  #        if ${pkgs.pulseaudio}/bin/pactl info >/dev/null 2>&1; then
+  #          ${pkgs.pulseaudio}/bin/pactl set-default-sink Abstract_Dual_TV
+  #          exit 0
+  #        fi
+  #        sleep 1
+  #      done
+  #    '';
+  #    Restart = "on-failure";
+  #    RestartSec = 2;
+  #  };
+  #};
 
+  systemd.services.NetworkManager-wait-online.enable = false;
   systemd.services.podman-re-l-core = {
     wantedBy = [ "multi-user.target" ];
     after = [ "display-manager.service" "nvidia-persistenced.service" ];
