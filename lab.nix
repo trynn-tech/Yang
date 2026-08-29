@@ -1,4 +1,4 @@
-# /etc/NixOS/lab.nix
+# /etc/nixos/lab.nix
 { config, pkgs, lib, ... }:
 
 let
@@ -9,7 +9,7 @@ let
   # ==========================================
   # TOGGLE: 
   #   - true  = Activate Phi-3.5-mini
-  #   - false = Activate StarCoder2-7B
+  #   - false = Activate Qwen2.5-Coder-7B
   # ==========================================
   runPhiMode = false;
 
@@ -40,10 +40,10 @@ let
 
   activeYaml = pkgs.writers.writeYAML "gpt-5.yaml" activeConfig;
 in {
-  networking.firewall.allowedTCPPorts = [ 8081 8888 6379 ];
+  networking.firewall.allowedTCPPorts = [ 8081 8888 ];
 
   environment.systemPackages = with pkgs; [
-    podman-compose skopeo git python313 pipenv curl redis wget
+    podman-compose skopeo git python313 pipenv curl wget
   ];
 
   systemd.tmpfiles.rules = [
@@ -103,12 +103,6 @@ in {
   virtualisation.oci-containers = {
     backend = "podman";
     containers = {
-      "re-l-redis" = {
-        image = "redis:7";
-        cmd = [ "redis-server" "--requirepass" "myStrongPass" ];
-        ports = [ "6379:6379" ];
-        extraOptions = [ "--network=re-l-net" "--log-opt=max-size=10m" ];
-      };
       "searxng" = {
         image = "docker.io/searxng/searxng:latest";
         ports = [ "8888:8080" ];
@@ -118,6 +112,7 @@ in {
         };
         extraOptions = [ "--network=re-l-net" "--log-opt=max-size=10m" "--log-opt=max-file=2" ];
       };
+
       "local-ai" = {
         image = "docker.io/localai/localai:v2.25.0-cublas-cuda12";
         ports = [ "8081:8080" ];
@@ -142,13 +137,12 @@ in {
     };
   };
 
-  systemd.services."podman-re-l-redis".after = [ "podman-network-re-l.service" ];
-  systemd.services."podman-searxng".after    = [ "podman-network-re-l.service" ];
+  systemd.services."podman-searxng".after = [ "podman-network-re-l.service" ];
+
   systemd.services."podman-local-ai" = {
     after = [
       "provision-re-l-models.service"
       "podman-network-re-l.service"
-      "podman-re-l-redis.service"
       "podman-searxng.service"
     ];
     requires = [

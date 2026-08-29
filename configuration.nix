@@ -1,11 +1,12 @@
+# /etc/nixos/configuration.nix
 { config, pkgs, lib, ... }:
 
 let
   # MASTER AUDIO TOGGLE: Set to false for PipeWire + Scaling fixes. Set to true for legacy PulseAudio.
   _customAudioToggle = false; 
 in
-{ 
-  imports = [ 
+{
+  imports = [
     # Include the results of the hardware scan.
     ./hardware-configuration.nix
     # TaskWarrior 3 Synchronize Servers
@@ -15,12 +16,13 @@ in
     # Podman Configurations for Re-L AI
     ./lab.nix
     # Advanced Intrusion Detection Environment Configuration
-    ./aide.nix # <--- Add it right here
+    ./aide.nix
   ];
 
   # Bootloader.
   boot.loader.systemd-boot.enable = true; 
   boot.loader.efi.canTouchEfiVariables = true;
+
   boot.blacklistedKernelModules = [ "nouveau" "nova_core" ];
   boot.kernelParams = [ 
     "nvidia-drm.modeset=1" 
@@ -38,14 +40,53 @@ in
     "vm.overcommit_memory" = 1;
   };
 
-  networking.hostName = "nixos"; 
-  networking.networkmanager.enable = true;
-  networking.nameservers = [ "1.1.1.1" "8.8.8.8" ];
+  # Load KVM kernel module at system boot
+  boot.kernelModules = [ "kvm-intel" ];
 
-  # Set your time zone.
+  # =========================================================================
+  # Consolidated Host & Virtual Bridge Networking (Yuko OpenWrt Integration)
+  # =========================================================================
+  networking = {
+    hostName = "nixos";
+    networkmanager.enable = true;
+    
+    # Global DHCP allowed; NetworkManager manages host interfaces while
+    # systemd-networkd/Nix handles the internal Yuko TAP bridge.
+    useDHCP = lib.mkDefault true;
+
+    # Yuko Internal Virtual Bridge Infrastructure
+    bridges."br-yuko" = {
+      interfaces = [ "tap-yuko" ];
+    };
+
+    # Set host bridge interface to request IP from OpenWrt's dnsmasq (192.168.1.1)
+    interfaces."br-yuko".useDHCP = true;
+
+    # TAP Interface permissions for QEMU user engine
+    interfaces."tap-yuko" = {
+      virtual = true;
+      virtualOwner = "trynn";
+    };
+
+    # Firewall Rules
+    firewall = {
+      enable = true;
+      # Trust Tailscale and internal OpenWrt Bridge
+      trustedInterfaces = [ "tailscale0" "br-yuko" ];
+      # Steam + Syncthing Ports
+      allowedTCPPorts = [ 27015 22000 ];
+      allowedUDPPorts = [ 41641 22000 21027 ];
+      allowedUDPPortRanges = [
+        { from = 27015; to = 27030; }
+        { from = 4379;  to = 4380; }
+      ];
+    };
+  };
+
+  # Time Zone & Power Management
   time.timeZone = "America/Chicago";
 
-  # --- Desktop Power Strategy (Always On for Tailscale/AI) ---
+  # Desktop Power Strategy (Always On for Tailscale/AI)
   services.logind = {
     settings.Login = {
       HandleLidSwitch = "ignore";
@@ -54,7 +95,7 @@ in
     };
   };
 
-  # Completely disable the ability to suspend/sleep
+  # Disable sleep/suspend states
   systemd.targets.sleep.enable = false;
   systemd.targets.suspend.enable = false;
   systemd.targets.hibernate.enable = false;
@@ -65,63 +106,65 @@ in
     SUBSYSTEM=="input", ATTRS{idVendor}=="0b05", ATTRS{idProduct}=="193e", ENV{SYSTEMD_WANTS}="", TAG-="power-switch"
   '';
 
-  # 1. Enable the shell system-wide (Critical!)
+  # System User & Shells
+  programs.adb.enable = true;
   programs.zsh.enable = true;
 
-  # 2. Assign it to your user
   users.users.trynn = {
     isNormalUser = true;  
     description = "trynn";
     group = "users";      
-    extraGroups = [ "networkmanager" "wheel" "video" "audio" ]; 
+    extraGroups = [ 
+      "networkmanager"
+      "wheel"
+      "video"
+      "audio"
+      "adbusers"
+      "kvm"
+    ]; 
     shell = pkgs.zsh;
   };
 
-  # Select internationalisation properties.
+  # Locales & Services
   i18n.defaultLocale = "en_US.UTF-8";
   i18n.extraLocaleSettings = { 
-    LC_ADDRESS = "en_US.UTF-8"; 
-    LC_IDENTIFICATION = "en_US.UTF-8"; 
-    LC_MEASUREMENT = "en_US.UTF-8"; 
-    LC_MONETARY = "en_US.UTF-8"; 
-    LC_NAME = "en_US.UTF-8"; 
-    LC_NUMERIC = "en_US.UTF-8"; 
-    LC_PAPER = "en_US.UTF-8"; 
-    LC_TELEPHONE = "en_US.UTF-8"; 
+    LC_ADDRESS = "en_US.UTF-8";
+    LC_IDENTIFICATION = "en_US.UTF-8";
+    LC_MEASUREMENT = "en_US.UTF-8";
+    LC_MONETARY = "en_US.UTF-8";
+    LC_NAME = "en_US.UTF-8";
+    LC_NUMERIC = "en_US.UTF-8";
+    LC_PAPER = "en_US.UTF-8";
+    LC_TELEPHONE = "en_US.UTF-8";
     LC_TIME = "en_US.UTF-8";
   };
 
-  # Enable CUPS to print documents.
   services.printing.enable = true;
-
-  # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
-
-  # Enables Nix Flakes
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
-  # List packages installed in system profile.
   environment.systemPackages = with pkgs; [
     pciutils
     tailscale 
     syncthing 
-    picom          
+    picom              
     nvidia-container-toolkit 
-    easyeffects
+    #easyeffects
+    copyq
+    podman-tui
+    android-tools
+    scrcpy
   ];
 
-  # Ensure proprietary firmware (like SOF for Intel) is available
   hardware.enableAllFirmware = true;
 
   services.xserver = {
     enable = true;
-    windowManager.i3.enable = true;
-    
-    # FIX: Keep nvidia as the driver instructing the display canvas to avoid sddm hangs
+    windowManager.i3.enable = true;    
     videoDrivers = [ "nvidia" ];
   };
 
-  # A custom "Caffeine-style" background process to keep displays alive
+  # Screen Keep-Alive Service
   systemd.user.services.anti-sleep-poker = {
     description = "Prevents TV/Displays from going to sleep via periodic xset pokes";
     wantedBy = [ "graphical-session.target" ];
@@ -129,7 +172,6 @@ in
     serviceConfig = {
       ExecStart = pkgs.writers.writeBash "anti-sleep" ''
         while true; do
-          # Disable screensaver/dpms and nudge the display every 4 minutes
           ${pkgs.xorg.xset}/bin/xset s off
           ${pkgs.xorg.xset}/bin/xset -dpms
           ${pkgs.xorg.xset}/bin/xset dpms force on
@@ -138,9 +180,9 @@ in
       '';
       Restart = "always";
     };
-  };
+  }; 
 
-   # Hardware / Nvidia
+  # Hardware / Nvidia Config
   hardware.graphics.enable = true;
   hardware.nvidia = {
     open = true; 
@@ -150,7 +192,6 @@ in
     nvidiaPersistenced = true;
     package = config.boot.kernelPackages.nvidiaPackages.stable;
     
-    # Active PRIME Sync configuration to bind both hardware cards together
     prime = {
       offload.enable = false;
       offload.enableOffloadCmd = false;
@@ -162,7 +203,6 @@ in
 
   hardware.nvidia-container-toolkit.enable = true;
 
-  # FIX: Forces X11 to bind to the Nvidia card while leaving the sync pipelines active for the motherboard port
   services.xserver.config = ''
     Section "ServerFlags"
         Option "BlankTime" "0"
@@ -170,13 +210,11 @@ in
         Option "SuspendTime" "0"
         Option "OffTime" "0"
     EndSection
-
     Section "Device"
         Identifier     "Device0"
         Driver         "nvidia"
         VendorName     "NVIDIA Corporation"
     EndSection
-
     Section "Screen"
         Identifier     "Screen0"
         Device         "Device0"
@@ -189,36 +227,26 @@ in
   services.gnome.gnome-keyring.enable = true;
   security.pam.services.sddm.enableGnomeKeyring = true;
 
-  # Display Manager (SDDM with Nvidia delay fix)
   services.displayManager = {
     sddm.enable = true;
     defaultSession = "none+i3";
   };
 
-  # Enable Mouse Over Applications in i3
   services.libinput.enable = true;
-
-  # Configure keymap in X11
   services.xserver.xkb = { 
-    layout = "us"; 
+    layout = "us";
     variant = "";
   };
 
-    # =========================================================================
-  # Audio Hardware & Server Infrastructure
-  # =========================================================================
-  
+  # Audio Stack
   services.pulseaudio.enable = _customAudioToggle;
   security.rtkit.enable = true; 
-  
   services.pipewire = {
     enable = !_customAudioToggle;
     alsa.enable = true;
     alsa.support32Bit = true;
     pulse.enable = true; 
     wireplumber.enable = true; 
-
-    # Override WirePlumber to lock down linear software volume scaling
     wireplumber.extraConfig."50-alsa-software-mixer" = lib.mkIf (!_customAudioToggle) {
       "monitor.alsa.rules" = [
         {
@@ -236,7 +264,6 @@ in
 
   systemd.services.NetworkManager-wait-online.enable = false;
 
-  # Keep container initialization safe. Protects against future network/nscd timeouts during startup hooks.
   systemd.services.podman-re-l-core = {
     wantedBy = [ "multi-user.target" ];
     after = [ "display-manager.service" "nvidia-persistenced.service" ];
@@ -245,27 +272,24 @@ in
 
   programs.dconf.enable = true;
 
-  systemd.user.services.easyeffects = {
-    description = "EasyEffects daemon";
-    requires = [ "pipewire.service" ];
-    after = [ "pipewire.service" ];
-    wantedBy = [ "graphical-session.target" ];
-    serviceConfig = {
-      ExecStart = "${pkgs.easyeffects}/bin/easyeffects --gapplication-service";
-      Restart = "on-failure";
-    };
-  };
+  #systemd.user.services.easyeffects = {
+  #  description = "EasyEffects daemon";
+  #  requires = [ "pipewire.service" ];
+  #  after = [ "pipewire.service" ];
+  #  wantedBy = [ "graphical-session.target" ];
+  #  serviceConfig = {
+  #    ExecStart = "${pkgs.easyeffects}/bin/easyeffects --gapplication-service";
+  #    Restart = "on-failure";
+  #  };
+  #};
 
   services.picom = {
     enable = true;
     backend = "glx"; 
-    vSync = true;
-   };
+    vSync = true; 
+  };
 
-  # Enable Tailscale Mesh
   services.tailscale.enable = true;
-  
-  # Enable the OpenSSH daemon.
   services.openssh.enable = true;
 
   virtualisation.podman = {
@@ -274,28 +298,9 @@ in
     defaultNetwork.settings.dns_enabled = true;
   };
 
-  # Minimal Steam Setup
-  programs.steam = {
-    enable = true;
-  };
-
-  # Restored Steam Port Openings & Firewall rules
-  networking.firewall = {
-    enable = true;
-    allowedTCPPorts = [ 27015 ];
-    allowedUDPPortRanges = [
-      { from = 27015; to = 27030; }
-      { from = 4379;  to = 4380; }
-    ];
-    extraCommands = ''
-      iptables -A OUTPUT -p udp --dport 443 -j DROP
-      iptables -A INPUT -p udp --dport 443 -j DROP
-    '';
-  };
-
+  programs.steam.enable = true;
   programs.gamemode.enable = true;
   programs.kdeconnect.enable = true;
 
   system.stateVersion = "25.11"; 
 }
-
