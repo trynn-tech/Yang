@@ -1,17 +1,9 @@
 # aide.nix
 { config, pkgs, lib, ... }:
 
-{
-  # 1. Install AIDE system-wide with root access
-  environment.systemPackages = [ pkgs.aide ];
-
-  # Automatically provision the state storage directory layout on startup
-  systemd.tmpfiles.rules = [
-    "d /var/lib/aide 0700 root root -"
-  ];
-
-  # 2. Declaratively structure the AIDE configuration profile
-  environment.etc."aide.conf".text = ''
+let
+  # Compile the config text cleanly into a standalone file directly inside the Nix store
+  aideConfig = pkgs.writeText "aide.conf" ''
     # Define verification database destinations
     database_in=file:/var/lib/aide/aide.db
     database_out=file:/var/lib/aide/aide.db.new
@@ -22,19 +14,26 @@
 
     # Apply monitoring matrices to key critical system paths
     /boot        MyCoreRules
-    /bin         MyCoreRules
-    /sbin        MyCoreRules
-    /lib         MyCoreRules
-    /lib64       MyCoreRules
+    /run/current-system/sw/bin MyCoreRules
     /etc         MyCoreRules
     
     # Explicitly ignore highly dynamic system/user runtime spaces 
     !/etc/mtab
     !/var/lib/aide
   '';
+in
+{
+  environment.systemPackages = [ pkgs.aide ];
+
+  # Automatically provision the state storage directory layout on startup
+  systemd.tmpfiles.rules = [
+    "d /var/lib/aide 0700 root root -"
+  ];
+
+  # Optional: Keep this if you still want a copy readable at /etc/aide.conf
+  environment.etc."aide.conf".source = aideConfig;
 
   # AUTOMATED INITIALIZATION LOOP
-  # This script intercepts activation and safely sets up the baseline database if it's missing.
   system.activationScripts.aide-init = {
     supportsDryActivation = true;
     text = ''
@@ -42,7 +41,10 @@
         echo "[aide] Initializing baseline integrity signature matrix database..."
         mkdir -p /var/lib/aide
         chmod 700 /var/lib/aide
-        ${pkgs.aide}/bin/aide --init --config /etc/aide.conf || true
+        
+        # Point directly to the immutable Nix store config path
+        ${pkgs.aide}/bin/aide --init --config ${aideConfig} || true
+        
         if [ -f /var/lib/aide/aide.db.new ]; then
           mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db
           echo "[aide] Baseline integrity verification snapshots captured successfully."
@@ -58,9 +60,9 @@
     
     serviceConfig = {
       Type = "oneshot";
-      ExecStart = "${pkgs.aide}/bin/aide --check --config /etc/aide.conf";
+      # Point cleanly to the exact store path definition
+      ExecStart = "${pkgs.aide}/bin/aide --check --config ${aideConfig}";
       
-      # Resource optimization: Run sweeps quietly in the background
       Nice = 19; 
       IOSchedulingClass = "idle"; 
     };
@@ -70,8 +72,8 @@
   systemd.timers.aide-check = {
     description = "Trigger AIDE daily for machine file integrity tracking";
     timerConfig = {
-      OnCalendar = "daily"; # Fires every night at midnight
-      Persistent = true;    # Catches up immediately if the machine was offline
+      OnCalendar = "daily";
+      Persistent = true;
     };
     wantedBy = [ "timers.target" ];
   };

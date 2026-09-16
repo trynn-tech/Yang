@@ -107,7 +107,6 @@ in
   '';
 
   # System User & Shells
-  programs.adb.enable = true;
   programs.zsh.enable = true;
 
   users.users.trynn = {
@@ -149,7 +148,7 @@ in
     syncthing 
     picom              
     nvidia-container-toolkit 
-    #easyeffects
+    android-tools
     copyq
     podman-tui
     android-tools
@@ -202,7 +201,7 @@ in
   };
 
   hardware.nvidia-container-toolkit.enable = true;
-
+ 
   services.xserver.config = ''
     Section "ServerFlags"
         Option "BlankTime" "0"
@@ -355,17 +354,6 @@ in
   };
 
   programs.dconf.enable = true;
-
-  #systemd.user.services.easyeffects = {
-  #  description = "EasyEffects daemon";
-  #  requires = [ "pipewire.service" ];
-  #  after = [ "pipewire.service" ];
-  #  wantedBy = [ "graphical-session.target" ];
-  #  serviceConfig = {
-  #    ExecStart = "${pkgs.easyeffects}/bin/easyeffects --gapplication-service";
-  #    Restart = "on-failure";
-  #  };
-  #};
 
   services.picom = {
     enable = true;

@@ -29,7 +29,8 @@ let
     name = "gpt-5";
     backend = "llama-cpp";
     parameters = {
-      model = "blobs/Qwen2.5-Coder-7B-Instruct-Q5_K_M.gguf";
+      # Point to the first shard; llama.cpp automatically binds 00002-of-00002
+      model = "blobs/qwen2.5-coder-7b-instruct-q5_k_m-00001-of-00002.gguf";
       context_size = 8192;
       gpu_layers = -1;
       temperature = 0.1;
@@ -66,7 +67,7 @@ in {
 
   systemd.services.provision-re-l-models = {
     description = "Declarative Model Provisioning Guard";
-    path = [ pkgs.wget pkgs.coreutils ];
+    path = [ pkgs.curl pkgs.wget pkgs.coreutils ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig.Type = "oneshot";
     script = ''
@@ -77,17 +78,27 @@ in {
 
       # Permanently cache Phi-3.5 if missing
       TARGET_PHI="${modelDir}/blobs/Phi-3.5-mini-instruct-Q4_K_M.gguf"
-      if [ ! -f "$TARGET_PHI" ]; then
+      if [ ! -s "$TARGET_PHI" ]; then
         echo "Downloading Phi-3.5-mini-instruct GGUF..."
-        wget -O "$TARGET_PHI" \
-          "https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct-Q4_K_M.gguf"
+        rm -f "$TARGET_PHI"
+        curl -sSL -A "Mozilla/5.0" -o "$TARGET_PHI" \
+          "https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct-Q4_K_M.gguf" || true
       fi
 
-      TARGET_QWEN="${modelDir}/blobs/Qwen2.5-Coder-7B-Instruct-Q5_K_M.gguf"
-      if [ ! -f "$TARGET_QWEN" ]; then
-        echo "Downloading Qwen2.5-Coder-7B-Instruct Q5_K_M GGUF..."
-        wget -O "$TARGET_QWEN" \
-          "https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF/resolve/main/Qwen2.5-Coder-7B-Instruct-Q5_K_M.gguf"
+      # Provision Qwen2.5-Coder split shards
+      SHARD1="${modelDir}/blobs/qwen2.5-coder-7b-instruct-q5_k_m-00001-of-00002.gguf"
+      SHARD2="${modelDir}/blobs/qwen2.5-coder-7b-instruct-q5_k_m-00002-of-00002.gguf"
+
+      if [ ! -s "$SHARD1" ]; then
+        echo "Downloading Qwen2.5-Coder shard 1 of 2..."
+        curl -sSL -A "Mozilla/5.0" -o "$SHARD1" \
+          "https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF/resolve/main/qwen2.5-coder-7b-instruct-q5_k_m-00001-of-00002.gguf?download=true" || true
+      fi
+
+      if [ ! -s "$SHARD2" ]; then
+        echo "Downloading Qwen2.5-Coder shard 2 of 2..."
+        curl -sSL -A "Mozilla/5.0" -o "$SHARD2" \
+          "https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF/resolve/main/qwen2.5-coder-7b-instruct-q5_k_m-00002-of-00002.gguf?download=true" || true
       fi
 
       # Write only the active configuration file for the chosen model
@@ -112,7 +123,6 @@ in {
         };
         extraOptions = [ "--network=re-l-net" "--log-opt=max-size=10m" "--log-opt=max-file=2" ];
       };
-
       "local-ai" = {
         image = "docker.io/localai/localai:v2.25.0-cublas-cuda12";
         ports = [ "8081:8080" ];
